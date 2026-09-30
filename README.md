@@ -10,6 +10,7 @@ Everything runs in [Microsoft Foundry](https://learn.microsoft.com/azure/foundry
 
 ## Contents
 
+0. [Before the demo: agents, Foundry, and Agent Framework](#0-before-the-demo-agents-foundry-and-agent-framework)
 1. [The application: FleetWise](#1-the-application-fleetwise)
 2. [What this demo sets out to achieve](#2-what-this-demo-sets-out-to-achieve)
 3. [The solution at a glance](#3-the-solution-at-a-glance)
@@ -22,6 +23,170 @@ Everything runs in [Microsoft Foundry](https://learn.microsoft.com/azure/foundry
 10. [How memory works](#10-how-memory-works)
 11. [What it takes to go to production](#11-what-it-takes-to-go-to-production)
 12. [Troubleshooting](#12-troubleshooting) | [Repository map](#13-repository-map) | [Presenting this as a session](#14-presenting-this-as-a-session) | [References](#references)
+
+---
+
+## 0. Before the demo: agents, Foundry, and Agent Framework
+
+Five ideas you need before the demo makes sense. No FleetWise details here; those start in section 1.
+
+### 0.1 LLM vs agent
+
+An **LLM** is a model: text in, text out. It answers from what it learned during training, it forgets everything between calls, and it cannot *do* anything.
+
+An **agent** is an LLM put to work toward a goal. It gets **instructions** (its job), **tools** (APIs it may call), **knowledge** (documents it may search), and **memory** (what it learned about you). It runs in a loop: think, act, look at the result, repeat, until the goal is met.
+
+```mermaid
+flowchart TB
+    subgraph L["LLM"]
+        direction LR
+        Q1["Prompt"] --> M1(("Model")) --> A1["Text answer"]
+    end
+    subgraph AG["Agent"]
+        direction LR
+        G["Goal"] --> M2(("Model<br/>+ instructions"))
+        M2 -- "1. decide" --> T["Tools<br/>APIs, search, code"]
+        T -- "2. observe result" --> M2
+        K[("Knowledge")] -.-> M2
+        ME[("Memory")] -.-> M2
+        M2 -- "3. done" --> R["Answer + actions taken"]
+    end
+    L ~~~ AG
+```
+
+| | **LLM** | **Agent** |
+| --- | --- | --- |
+| What it is | A model | A model + instructions + tools + knowledge + memory, in a loop |
+| Knows | What it was trained on (frozen) | Live data from your systems, your documents |
+| Remembers | Nothing between calls | Conversation and long-term memory |
+| Can act | No, only writes text | Yes, calls tools: read data, book, send, create |
+| Steps | One: answer | Many: plan, call tools, check, retry |
+| Example | "Explain how brake inspections work" | "Find the overdue brake jobs in our fleet and book them" |
+| Main risk | Wrong text | Wrong **action**, so it needs permissions, approvals, evaluation |
+
+> **Rule of thumb:** if a fixed sequence of code steps does the job, write code. Use an agent when the steps depend on the situation and the input is natural language.
+
+### 0.2 What is Microsoft Foundry?
+
+**[Microsoft Foundry](https://learn.microsoft.com/azure/foundry/what-is-foundry)** is Azure's platform to build, run, and govern AI apps and agents. One project gives you the models, the agent runtime, and everything around it that production needs.
+
+```mermaid
+flowchart TB
+    subgraph BUILD["BUILD with"]
+        direction LR
+        MOD["Models<br/>OpenAI, Anthropic, Meta,<br/>Mistral, DeepSeek, ..."] ~~~ TL["Tools<br/>OpenAPI, MCP, File Search,<br/>Code Interpreter, web"] ~~~ KN["Knowledge<br/>vector stores,<br/>Azure AI Search"]
+    end
+    subgraph RUN["RUN on"]
+        direction LR
+        AS["Foundry Agent Service<br/>hosts, versions, scales agents"] ~~~ MEM["Memory<br/>per-user, long-term"]
+    end
+    subgraph TRUST["TRUST with"]
+        direction LR
+        EV["Evaluations<br/>quality, safety, custom"] ~~~ OBS["Observability<br/>traces, dashboards"] ~~~ SEC["Security<br/>Entra ID, RBAC, private network"] ~~~ SAFE["Safety<br/>content filters, prompt shields"]
+    end
+    BUILD --> RUN --> TRUST
+```
+
+In short: **Foundry is where agents live**: it hosts them, versions them, secures them, and lets you see and measure what they do.
+
+### 0.3 What is Microsoft Agent Framework?
+
+**[Microsoft Agent Framework](https://learn.microsoft.com/agent-framework/overview/)** is Microsoft's open-source SDK (Python and .NET) for writing agents and **multi-agent workflows** in code. It is the successor to Semantic Kernel and AutoGen, from the same teams.
+
+It gives you:
+
+- **Agents**: one interface over Foundry, Azure OpenAI, OpenAI, and other providers.
+- **Workflows**: connect agents and code steps into a graph, with ready-made orchestration patterns.
+- **Human in the loop**: pause a workflow for approval, resume it later (with checkpoints).
+- **Open standards**: MCP for tools, A2A for agent-to-agent calls, OpenTelemetry for traces.
+
+```mermaid
+flowchart TB
+    subgraph S["Sequential: a pipeline"]
+        direction LR
+        s1(["Agent A"]) --> s2(["Agent B"]) --> s3(["Agent C"])
+    end
+    subgraph C["Concurrent: fan out, merge"]
+        direction LR
+        c0["Task"] --> c1(["Agent A"]) & c2(["Agent B"]) --> c3["Merge"]
+    end
+    subgraph H["Handoff: pass to the right specialist"]
+        direction LR
+        h1(["Agent A"]) -- "not my job" --> h2(["Agent B"])
+    end
+    subgraph G["Group chat / Magentic: a manager coordinates"]
+        direction LR
+        g0{{"Manager"}} --> g1(["Agent A"]) & g2(["Agent B"]) & g3(["Agent C"])
+    end
+    S ~~~ C ~~~ H ~~~ G
+```
+
+### 0.4 Foundry vs Agent Framework: how they fit
+
+They are not alternatives. **Agent Framework is how you write agent logic. Foundry is where it runs and is governed.**
+
+```mermaid
+flowchart TB
+    APP["Your app / Teams / API"]
+    subgraph CODE["Agent Framework (your code)"]
+        WF["Workflows, orchestration,<br/>human approval, custom logic"]
+    end
+    subgraph FDY["Microsoft Foundry (the platform)"]
+        AGT["Agents: versioned, with identity"]
+        PLAT["Models · Tools · Knowledge · Memory ·<br/>Evaluations · Traces · Security"]
+    end
+    APP --> CODE --> AGT --> PLAT
+    APP -. "simple case: call the agent directly" .-> AGT
+```
+
+### 0.5 Ways to create and host an agent in Foundry
+
+From least code to most control:
+
+| # | Way | You ship | Who runs it | Good for |
+| --- | --- | --- | --- | --- |
+| 1 | **Portal** (agent playground) | Clicks: pick model, write instructions, add tools | Foundry | Prototyping, business users, trying ideas |
+| 2 | **Prompt agent from code** (SDK, REST, YAML) | A definition: model + instructions + tools | Foundry | Most single agents, repeatable deploys from CI |
+| 3 | **Foundry workflow** (declarative) | A workflow of agents and steps, built visually or in YAML | Foundry | Multi-agent flows without writing a service |
+| 4 | **Hosted agent** | Your own code in a container (Agent Framework, LangGraph, ...) | Foundry | Custom orchestration, complex multi-agent systems |
+| 5 | **Self-hosted orchestration** | Agent Framework in your own app (Container Apps, Functions, AKS) calling Foundry agents | You, with Foundry agents inside | Keep orchestration in an existing app; a step before a hosted agent |
+
+```mermaid
+flowchart TD
+    Q1{"One agent,<br/>model + instructions + tools<br/>is enough?"}
+    Q1 -- "yes, exploring" --> P1["1 Portal"]
+    Q1 -- "yes, for real" --> P2["2 Prompt agent from code"]
+    Q1 -- "no, several agents<br/>or custom logic" --> Q2{"Need your own code<br/>in the loop?"}
+    Q2 -- "no" --> P3["3 Foundry workflow"]
+    Q2 -- "yes" --> Q3{"Who should run it?"}
+    Q3 -- "Foundry" --> P4["4 Hosted agent"]
+    Q3 -- "my existing app" --> P5["5 Self-hosted"]
+```
+
+Whichever way you choose, every Foundry agent gets **versions**, **traces**, **evaluations**, and its own **Entra identity**.
+
+**This demo uses 2 + 5:** two prompt agents deployed from code, orchestrated by Agent Framework running locally. The production step is moving that orchestration into a **hosted agent** (4).
+
+### 0.6 Best practices
+
+```mermaid
+flowchart LR
+    A["Start simple"] --> B["Least privilege"] --> C["Ground it"] --> D["Human approves writes"] --> E["Evaluate every version"] --> F["Observe and roll back"]
+```
+
+| Practice | What it means |
+| --- | --- |
+| **Start with the simplest thing** | A prompt agent before a workflow; a workflow before a hosted agent. Add agents only when one agent's job gets too broad. |
+| **One job per agent, least privilege** | An agent that reads untrusted text should not also be able to write. Split read and write agents. |
+| **Ground, don't guess** | Live data through tools (APIs); documents through retrieval with citations; business rules stay in code. |
+| **Humans approve actions** | Enforce approval in the orchestration code, not in the prompt. A prompt is a request, not a control. |
+| **Treat data as untrusted** | Text returned by tools can carry prompt injection. Test for it; use prompt shields. |
+| **Version and evaluate** | Every change is a new immutable version. An evaluation (quality, safety, your own rules) gates promotion, ideally in CI. |
+| **Observe everything** | Traces on every call; dashboards for latency, cost, tool failures. Roll back to a known-good version in minutes. |
+| **Secure by default** | Entra ID and managed identity, no keys; RBAC; private networking; everything deployed from code (IaC). |
+| **Scope memory** | One memory scope per user; decide what may be remembered and for how long. |
+
+The demo that follows shows each of these practices on a real application.
 
 ---
 
@@ -644,19 +809,20 @@ flowchart LR
 
 ## 14. Presenting this as a session
 
-The walkthrough in [section 8](#8-walkthrough-run-it-yourself) is also a 45-minute live session:
+The walkthrough in [section 8](#8-walkthrough-run-it-yourself) is also a 50-minute live session:
 
 | Minutes | Content |
 | --- | --- |
-| 0-3 | The application and the question a fleet manager wants answered (sections 1 and 2) |
-| 3-9 | The solution, Foundry prompt agents, Agent Framework (sections 3, 6, 7) |
-| 9-13 | Deploy an agent version (8.2) |
-| 13-22 | How evaluation works, and evaluate it live (9, then 8.3) |
-| 22-27 | Fix, redeploy, re-evaluate, promote (8.4) |
-| 27-31 | Memory (8.5) |
-| 31-38 | The multi-agent workflow with human approval (8.6) |
-| 38-41 | Traces, versions, evaluation runs in the portal |
-| 41-45 | Production (section 11) and Q&A |
+| 0-8 | Concepts: LLM vs agent, Foundry, Agent Framework, ways to host agents, best practices (section 0) |
+| 8-11 | The application and the question a fleet manager wants answered (sections 1 and 2) |
+| 11-14 | The solution at a glance: how the concepts map to this demo (sections 3, 6, 7) |
+| 14-18 | Deploy an agent version (8.2) |
+| 18-27 | How evaluation works, and evaluate it live (9, then 8.3) |
+| 27-32 | Fix, redeploy, re-evaluate, promote (8.4) |
+| 32-36 | Memory (8.5) |
+| 36-43 | The multi-agent workflow with human approval (8.6) |
+| 43-46 | Traces, versions, evaluation runs in the portal |
+| 46-50 | Production (section 11) and Q&A |
 
 Before starting: `scripts/preflight.sh` and `scripts/reset-api.sh`. Each live eval takes about a minute. Start it, then switch to the portal's **Evaluations** page while it runs.
 
