@@ -58,4 +58,4 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - name: Run Foundry evaluation (fails below the pass-rate threshold)
-        run: python -m evals.foundry_eval "$AGENT_VERSION" --min-pass-rate 0.8
+        run: python -m evals.foundry_eval "$AGENT_VERSION" --min-quality 0.75
