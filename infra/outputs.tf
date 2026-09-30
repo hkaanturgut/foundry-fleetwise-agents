@@ -4,3 +4,4 @@ output "project_endpoint" { value = "https://${azapi_resource.foundry.name}.serv
 output "chat_deployment" { value = azapi_resource.chat.name }
 output "acr_name" { value = azurerm_container_registry.acr.name }
 output "api_url" { value = "https://${azurerm_container_app.api.ingress[0].fqdn}" }
+output "embedding_deployment" { value = azapi_resource.embedding.name }

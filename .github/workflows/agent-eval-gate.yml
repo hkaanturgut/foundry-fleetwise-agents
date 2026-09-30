@@ -1,0 +1,61 @@
+# Agent eval gate: every change to agent instructions, tools, or eval cases must pass
+# (1) the domain rule evals (tenant isolation, prompt injection, grounding) and
+# (2) the Foundry cloud evaluation (LLM-judge quality + content safety) before merge.
+#
+# One-time setup: an Entra app with a federated credential for this repo, the roles
+# "Foundry User" and "Cognitive Services OpenAI User" on the Foundry account, and
+# repo variables AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
+# FOUNDRY_PROJECT_ENDPOINT, FLEETWISE_API_URL.
+name: agent-eval-gate
+
+on:
+  pull_request:
+    paths: ["src/agents/**", "evals/**", "data/manuals/**", "openapi/**"]
+  workflow_dispatch:
+    inputs:
+      agent_version:
+        description: "fleet-triage version to gate (number or 'latest')"
+        default: "latest"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  FOUNDRY_PROJECT_ENDPOINT: ${{ vars.FOUNDRY_PROJECT_ENDPOINT }}
+  FLEETWISE_API_URL: ${{ vars.FLEETWISE_API_URL }}
+  FOUNDRY_MODEL: gpt-4o
+  AGENT_VERSION: ${{ inputs.agent_version || 'latest' }}
+
+jobs:
+  domain-evals:
+    name: Domain rules (tenant, injection, grounding)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r requirements.txt
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Run rule-based evals (fails the job on any failed case)
+        run: python -m evals.run "$AGENT_VERSION"
+
+  foundry-evals:
+    name: Foundry cloud eval (quality + safety)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r requirements.txt
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Run Foundry evaluation (fails below the pass-rate threshold)
+        run: python -m evals.foundry_eval "$AGENT_VERSION" --min-pass-rate 0.8

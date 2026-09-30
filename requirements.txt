@@ -1,4 +1,7 @@
-azure-ai-projects>=2.7.0
+azure-ai-projects>=2.6.1
 azure-identity
 openai
 httpx
+agent-framework-core>=1.19.0
+agent-framework-foundry>=1.13.1
+agent-framework-orchestrations>=1.2.0

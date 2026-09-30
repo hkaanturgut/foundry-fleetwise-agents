@@ -54,3 +54,13 @@ def ask(openai_client, agent_name: str, question: str, version: str | None = Non
         ref["version"] = version
     response = openai_client.responses.create(input=question, extra_body={"agent_reference": ref})
     return response.output_text
+
+
+def resolve_version(label: str, agent_name: str = TRIAGE) -> str:
+    """'v1'/'v2'/... from .agents.json, a literal version number, or 'latest' (used in CI)."""
+    if label.isdigit():
+        return label
+    agents_file = ROOT / ".agents.json"
+    if label != "latest" and agents_file.exists():
+        return json.loads(agents_file.read_text())[label]
+    return project().agents.get(agent_name=agent_name).versions["latest"]["version"]

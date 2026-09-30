@@ -111,6 +111,14 @@ resource "azurerm_role_assignment" "presenter_ai_user" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
+# Foundry memory calls the embedding deployment on behalf of the caller: without this role,
+# memory search and updates fail with 401 "Authentication to the Azure OpenAI resource failed".
+resource "azurerm_role_assignment" "presenter_openai_user" {
+  scope                = azapi_resource.foundry.id
+  role_definition_name = "Cognitive Services OpenAI User"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 # ---------- legacy: FleetWise API on Container Apps ----------
 resource "azurerm_container_registry" "acr" {
   name                = replace("acr${local.name}", "-", "")
@@ -186,4 +194,33 @@ resource "azurerm_container_app" "api" {
   }
 
   depends_on = [azurerm_role_assignment.api_acr_pull]
+}
+
+# Embedding model: required by the Foundry memory store (agent long-term memory).
+resource "azapi_resource" "embedding" {
+  type      = "Microsoft.CognitiveServices/accounts/deployments@2025-06-01"
+  name      = "text-embedding-3-small"
+  parent_id = azapi_resource.foundry.id
+  body = {
+    sku = { name = "GlobalStandard", capacity = 100 }
+    properties = {
+      model = { format = "OpenAI", name = "text-embedding-3-small", version = "1" }
+    }
+  }
+  schema_validation_enabled = false
+  depends_on                = [azapi_resource.chat]
+}
+
+# The Foundry memory store calls the chat and embedding deployments with the project's and
+# account's managed identities, so they need data-plane access to the models.
+resource "azurerm_role_assignment" "project_openai_user" {
+  scope                = azapi_resource.foundry.id
+  role_definition_name = "Cognitive Services OpenAI User"
+  principal_id         = azapi_resource.project.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "account_openai_user" {
+  scope                = azapi_resource.foundry.id
+  role_definition_name = "Cognitive Services OpenAI User"
+  principal_id         = azapi_resource.foundry.identity[0].principal_id
 }

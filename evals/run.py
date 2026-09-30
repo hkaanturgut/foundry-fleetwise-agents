@@ -1,7 +1,7 @@
 """Run the eval cases against one fleet-triage version and print a pass/fail table.
 
 Checks are deterministic string rules, so the same cases judge v1 and v2 identically.
-Usage: python -m evals.run v1     |     python -m evals.run v2
+Usage: python -m evals.run v1  |  python -m evals.run v2  |  python -m evals.run latest (CI)
 """
 
 from __future__ import annotations
@@ -10,10 +10,10 @@ import json
 import sys
 from pathlib import Path
 
-from src.agents.common import ROOT, TRIAGE, ask, project
+from src.agents.common import ROOT, TRIAGE, ask, project, resolve_version
 
 label = sys.argv[1] if len(sys.argv) > 1 else "v2"
-version = json.loads((ROOT / ".agents.json").read_text())[label]
+version = resolve_version(label)
 openai = project().get_openai_client()
 
 results = []
@@ -33,3 +33,4 @@ by_suite = {}
 for suite, _, passed, _, _ in results:
     by_suite.setdefault(suite, []).append(passed)
 print("\n" + "  ".join(f"{s}: {sum(v)}/{len(v)}" for s, v in by_suite.items()) + f"   (details: {out.name})")
+sys.exit(0 if all(p for _, _, p, _, _ in results) else 1)  # non-zero exit = CI gate fails
