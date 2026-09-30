@@ -1,0 +1,31 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "FleetWise read API for agents",
+    "version": "1.0.0",
+    "description": "Read-only operations of the FleetWise legacy API. The tenant header is fixed to one customer; the agent cannot choose another."
+  },
+  "servers": [{ "url": "__API_URL__" }],
+  "paths": {
+    "/api/dispatch": {
+      "get": {
+        "operationId": "getDispatchLines",
+        "summary": "List vehicles with a scheduled service that is overdue or due soon, most urgent first, each with a suggested technician.",
+        "parameters": [
+          { "name": "X-Tenant-Id", "in": "header", "required": true, "description": "Customer id. Always 1.", "schema": { "type": "string", "enum": ["1"], "default": "1" } }
+        ],
+        "responses": { "200": { "description": "Dispatch lines", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    },
+    "/api/vehicles/{id}": {
+      "get": {
+        "operationId": "getVehicle",
+        "summary": "Get one vehicle with its full maintenance history, including technician notes.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "description": "Vehicle id (vehicleId from getDispatchLines).", "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Vehicle", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    }
+  }
+}

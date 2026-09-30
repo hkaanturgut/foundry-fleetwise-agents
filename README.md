@@ -2,7 +2,19 @@
 
 Build, test, and trust AI agents on top of an existing application with [Microsoft Foundry](https://learn.microsoft.com/azure/foundry/). The legacy FleetWise .NET API stays unchanged; agents reach it through its OpenAPI contract, ground answers in maintenance manuals, hand off work between agents with a human approval step, and are evaluated and red-teamed before anyone trusts them.
 
-> **Status: under construction.** The companion Spec Kit demo lives in [spec-kit-fleetwise](https://github.com/hkaanturgut/spec-kit-fleetwise).
+> The companion Spec Kit demo lives in [spec-kit-fleetwise](https://github.com/hkaanturgut/spec-kit-fleetwise).
+
+## Quick start
+
+```bash
+az login
+SUBSCRIPTION_ID=<your-subscription-id> scripts/deploy.sh eastus2   # Terraform + image build + .env
+python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+python -m src.agents.setup_agents          # creates the agent versions and the manuals vector store
+scripts/preflight.sh
+python -m src.agents.dispatch_workflow     # two agents + manager approval
+python -m evals.run v1 && python -m evals.run v2   # break-fix proof
+```
 
 ## Target architecture
 

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Stub of the GitHub Copilot CLI (`copilot -p "<prompt>"`), used to test the
+# sdd-autopilot Spec Kit workflow offline. It records every Spec Kit command it
+# receives and fakes the artifact each command would write.
+set -euo pipefail
+prompt="${2:-}"
+cmd="$(echo "$prompt" | awk '{print $1}')"
+echo "$cmd" >> "${STUB_LOG:?STUB_LOG must be set}"
+F="specs/001-overdue-dispatcher"
+case "$cmd" in
+  /speckit-specify)
+    mkdir -p "$F"
+    printf '# Feature: Overdue dispatcher\n\nManagers see overdue vehicles.\n' > "$F/spec.md"
+    printf '{"feature_directory":"%s"}\n' "$F" > .specify/feature.json ;;
+  /speckit-plan)  printf '# Plan\n\nDispatcherService, TenantId scoped.\n' > "$F/plan.md" ;;
+  /speckit-tasks) printf -- '- [ ] T001 Write failing tests\n- [ ] T002 Implement DispatcherService\n' > "$F/tasks.md" ;;
+  /speckit-implement) sed -i.bak 's/- \[ \] T001/- [x] T001/' "$F/tasks.md" && rm -f "$F/tasks.md.bak" ;;
+  /speckit-converge)  sed -i.bak 's/- \[ \] T002/- [x] T002/' "$F/tasks.md" && rm -f "$F/tasks.md.bak" ;;
+esac
+echo '{"type":"result","result":"ok"}'

@@ -8,3 +8,6 @@ __pycache__/
 bin/
 obj/
 .DS_Store
+.agents.json
+evals/results-*.json
+.terraform.lock.hcl
