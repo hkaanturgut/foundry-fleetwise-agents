@@ -33,14 +33,19 @@ from .common import PROJECT_ENDPOINT, ROOT, TRIAGE, WORKORDER
 from .workorder_tools import TOOLS
 
 
-class _DropDuplicateApprovalWarning(logging.Filter):
-    """The workflow binds each approval response twice; the second pass logs a harmless warning."""
+class _DropExpectedWarnings(logging.Filter):
+    """Two warnings describe this design working as intended, so they are not shown on stage:
+    - each approval response is bound twice; the second pass logs a harmless mismatch;
+    - tool schemas live on the Foundry agent, so the client does not resend them."""
+
+    EXPECTED = ("did not match the active approval", "tool declarations cannot be sent when an agent is specified")
 
     def filter(self, record: logging.LogRecord) -> bool:
-        return "did not match the active approval" not in record.getMessage()
+        return not any(text in record.getMessage() for text in self.EXPECTED)
 
 
-logging.getLogger("agent_framework").addFilter(_DropDuplicateApprovalWarning())
+for _name in ("agent_framework", "agent_framework.foundry"):
+    logging.getLogger(_name).addFilter(_DropExpectedWarnings())
 
 def build_workflow(manager_scope: str):
     """Both participants are Foundry-hosted agent versions; memory is the Foundry memory search tool

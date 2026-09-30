@@ -408,7 +408,7 @@ sequenceDiagram
     WO-->>Mgr: booked / not booked
 ```
 
-**Say:** *"Triage has read-only tools. The work-order agent has a booking tool, and the framework, not the prompt, refuses to run it until a human approves."*
+**Say:** *"Triage has read-only tools. The work-order agent has a booking tool, and the framework, not the prompt, refuses to run it until a human approves. And watch the memory from Part 6 meet a guardrail: the manager prefers Aisha Khan, but the tool checks qualifications, and she is not certified for brakes."*
 
 **Run:**
 
@@ -419,8 +419,8 @@ python -m src.agents.maf_workflow --manager kaan
 **Expect:**
 
 - `[fleet-triage]` streams the top 3, **HeavyDuty first because of memory**
-- `[fleet-workorder]` prints three `[APPROVAL REQUIRED] approve_work_order {...}` prompts with `"technician_id": 3`: **Aisha Khan, the preference it remembered** in Part 6. Answer **y, n, y**
-- The final report: two booked, one not booked
+- `[fleet-workorder]` checks the remembered preference: it calls `list_qualified_technicians`, finds that **Aisha Khan is not qualified for brake work**, and keeps Dave Chen. Then three `[APPROVAL REQUIRED] approve_work_order {...}` prompts. Answer **y, n, y**
+- The final report: two booked with Dave Chen (and why not Aisha), one not booked
 
 **Show:** refresh `GET /api/dispatch` in Swagger: exactly the two approved lines now show `AlreadyHandled`; the rejected one is still `Overdue`.
 
@@ -636,7 +636,7 @@ scripts/preflight.sh
 | `src/legacy-api/` | The FleetWise .NET 8 API, containerized |
 | `src/agents/deploy.py` | **Live deploy** of agent versions (naive, hardened, `--memory`, workorder) |
 | `src/agents/maf_workflow.py` | Agent Framework sequential workflow with human approval |
-| `src/agents/workorder_tools.py` | Function tools (declared in Foundry, executed in the workflow) |
+| `src/agents/workorder_tools.py` | Function tools (declared in Foundry, executed in the workflow): dispatch lines, qualified technicians, approve (human-gated), reject |
 | `src/agents/memory_demo.py` | Memory across two sessions |
 | `src/agents/setup_*.py` | Vector store, memory store, baseline agents |
 | `evals/cases.jsonl` | Test cases: question, rules, expectation |

@@ -81,7 +81,7 @@ def deploy_workorder() -> None:
     _save(workorder_hosted=str(agent.version))
     print(f"Deployed {WORKORDER}:{agent.version}")
     print(f"  model   {MODEL}")
-    print("  tools   get_dispatch_lines | approve_work_order (human approval) | reject_work_order  +  memory_search")
+    print("  tools   get_dispatch_lines | list_qualified_technicians | approve_work_order (human approval) | reject_work_order  +  memory_search")
     print(f"  portal  {portal_link(WORKORDER)}")
 
 
