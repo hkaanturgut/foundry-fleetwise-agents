@@ -28,7 +28,7 @@ def load_env() -> None:
 load_env()
 
 PROJECT_ENDPOINT = os.environ.get("FOUNDRY_PROJECT_ENDPOINT", "")
-MODEL = os.environ.get("FOUNDRY_MODEL", "gpt-4.1")
+MODEL = os.environ.get("FOUNDRY_MODEL", "gpt-4o")
 API_URL = os.environ.get("FLEETWISE_API_URL", "").rstrip("/")
 
 TRIAGE = "fleet-triage"

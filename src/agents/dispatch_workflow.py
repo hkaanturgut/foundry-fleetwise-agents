@@ -39,7 +39,8 @@ def main() -> None:
 
     lines = requests_lines()
     print("\n[3/3] Manager approval (nothing is booked without a yes)\n")
-    for unit, service in re.findall(r"(LSL-\d{3})\s*\|\s*([A-Za-z]+)", drafts):
+    for unit, raw_service in re.findall(r"(LSL-\d{3})\s*\|\s*([^|\n]+?)\s*\|", drafts):
+        service = re.sub(r"\s+", "", raw_service)  # "Brake Inspection" -> "BrakeInspection"
         match = next((l for l in lines if l["unitNumber"] == unit and l["serviceType"] == service), None)
         if match is None:
             print(f"  {unit} {service}: not on the dispatch list, skipped")

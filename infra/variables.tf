@@ -9,7 +9,7 @@ variable "prefix" {
 }
 variable "chat_model" {
   type = object({ name = string, version = string, sku = string, capacity = number })
-  default = { name = "gpt-4.1", version = "2025-04-14", sku = "GlobalStandard", capacity = 100 }
+  default = { name = "gpt-4o", version = "2024-11-20", sku = "GlobalStandard", capacity = 100 }
 }
 variable "api_image" {
   description = "FleetWise API image. Placeholder until the first az acr build."

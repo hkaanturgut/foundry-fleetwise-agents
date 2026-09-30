@@ -107,7 +107,7 @@ resource "azapi_resource" "appinsights_connection" {
 # The presenter can create agents and run evaluations in the project.
 resource "azurerm_role_assignment" "presenter_ai_user" {
   scope                = azapi_resource.foundry.id
-  role_definition_name = "Azure AI User"
+  role_definition_name = "Foundry User"
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
