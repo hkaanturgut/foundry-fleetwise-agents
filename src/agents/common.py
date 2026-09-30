@@ -27,6 +27,15 @@ def load_env() -> None:
 
 load_env()
 
+# python.org builds of Python on macOS ship without system CA certificates; aiohttp (used by the
+# memory provider) then fails TLS. Point it at certifi's bundle unless the caller set one.
+try:
+    import certifi
+
+    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+except ImportError:
+    pass
+
 PROJECT_ENDPOINT = os.environ.get("FOUNDRY_PROJECT_ENDPOINT", "")
 MODEL = os.environ.get("FOUNDRY_MODEL", "gpt-4o")
 API_URL = os.environ.get("FLEETWISE_API_URL", "").rstrip("/")

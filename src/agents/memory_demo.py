@@ -3,6 +3,8 @@
 Session 1: the fleet manager states a standing preference.
 Session 2: a brand-new session (new thread, no chat history) with the same memory scope.
 The agent recalls the preference from the Foundry memory store, not from the conversation.
+Memory is the Foundry memory search tool on the hosted agent; the scope comes from the
+x-memory-user-id header. Prove it in the portal: Memory stores > fleetwise-manager-memory.
 
 Usage: python -m src.agents.memory_demo [--manager kaan] [--reset] [--recall-only] [--wait 30]
 """
@@ -13,7 +15,7 @@ import argparse
 import asyncio
 import json
 
-from agent_framework.foundry import FoundryAgent, FoundryMemoryProvider
+from agent_framework.foundry import FoundryAgent
 from azure.identity import AzureCliCredential
 
 from .common import PROJECT_ENDPOINT, ROOT, TRIAGE
@@ -27,22 +29,14 @@ ASK = "Before we start: how do I like my maintenance list ordered, and who do I 
 
 
 def _agent(scope: str) -> FoundryAgent:
-    credential = AzureCliCredential()
+    """The Foundry-hosted fleet-triage version with the memory search tool in its definition."""
     versions = json.loads((ROOT / ".agents.json").read_text())
     return FoundryAgent(
         project_endpoint=PROJECT_ENDPOINT,
         agent_name=TRIAGE,
-        agent_version=versions["v2"],
-        credential=credential,
-        context_providers=[
-            FoundryMemoryProvider(
-                project_endpoint=PROJECT_ENDPOINT,
-                credential=credential,
-                memory_store_name=STORE,
-                scope=scope,
-                update_delay=0,
-            )
-        ],
+        agent_version=versions["triage_hosted"],
+        credential=AzureCliCredential(),
+        default_headers={"x-memory-user-id": scope},
     )
 
 
