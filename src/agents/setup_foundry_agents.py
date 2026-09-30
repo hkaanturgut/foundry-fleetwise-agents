@@ -1,4 +1,4 @@
-"""Host both workflow agents in Foundry with Foundry memory attached as an agent tool.
+"""Run both workflow agents in Foundry Agent Service as prompt agents, with Foundry memory attached as a tool.
 
   fleet-triage     hardened instructions + OpenAPI tool + File Search + memory search tool
   fleet-workorder  work-order instructions + function tools (declared in Foundry, executed by the
@@ -8,7 +8,7 @@ The memory tool is scoped with {{$userId}}: the workflow sends `x-memory-user-id
 so each fleet manager gets an isolated scope. Because memory is part of the agent definition, the
 portal shows it on the agent (Tools) and the memories under the memory store.
 
-Usage: python -m src.agents.setup_hosted_agents
+Usage: python -m src.agents.setup_foundry_agents
 """
 
 from __future__ import annotations

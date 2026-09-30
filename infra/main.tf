@@ -224,3 +224,11 @@ resource "azurerm_role_assignment" "account_openai_user" {
   role_definition_name = "Cognitive Services OpenAI User"
   principal_id         = azapi_resource.foundry.identity[0].principal_id
 }
+
+# The Foundry portal's Memory page (and memory extraction) runs as the project's managed identity,
+# which needs Foundry User on the project itself.
+resource "azurerm_role_assignment" "project_foundry_user" {
+  scope                = azapi_resource.project.id
+  role_definition_name = "Foundry User"
+  principal_id         = azapi_resource.project.identity[0].principal_id
+}
