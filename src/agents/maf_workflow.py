@@ -72,34 +72,27 @@ def build_workflow(manager_scope: str):
     return SequentialBuilder(participants=[triage, workorder], output_from="all").build()
 
 
-_state: dict[str, str] = {}
-
-
-async def _drain(stream, auto_approve: bool) -> dict[str, Content] | None:
+async def _drain(stream, auto_approve: bool, presenter) -> dict[str, Content] | None:
+    """Stream one leg of the workflow; return approval responses if the workflow paused."""
     requests: dict[str, Content] = {}
     async for event in stream:
         if event.type == "request_info" and isinstance(event.data, Content):
             requests[event.request_id] = event.data
-        elif event.type == "output":
-            data = event.data
-            if isinstance(data, list):  # final conversation
-                continue
-            speaker = getattr(data, "author_name", None) or getattr(data, "executor_id", None)
-            text = getattr(data, "text", "") or ""
-            if speaker and speaker != _state.get("speaker"):
-                _state["speaker"] = speaker
-                print(f"\n\n[{speaker}]")
-            print(text, end="", flush=True)
+        elif event.type == "output" and not isinstance(event.data, list):
+            presenter.on_update(event.data)
 
     if not requests:
         return None
     responses: dict[str, Content] = {}
-    for request_id, request in requests.items():
-        if request.type == "function_approval_request" and request.function_call is not None:
-            args = request.function_call.arguments
-            print(f"\n[APPROVAL REQUIRED] {request.function_call.name} {args}")
-            answer = "y" if auto_approve else input("  Approve? [y/n] ").strip().lower()
-            responses[request_id] = request.to_function_approval_response(approved=answer == "y")
+    approvals = [(rid, r) for rid, r in requests.items() if r.type == "function_approval_request" and r.function_call]
+    for number, (request_id, request) in enumerate(approvals, start=1):
+        presenter.approval(number, len(approvals), request.function_call.arguments)
+        if auto_approve:
+            answer = "y"
+        else:
+            answer = input("  Approve this booking? [y/n] ").strip().lower()
+        presenter.record_decision(answer == "y")
+        responses[request_id] = request.to_function_approval_response(approved=answer == "y")
     return responses
 
 
@@ -110,12 +103,24 @@ async def main() -> None:
     parser.add_argument("--manager", default="kaan", help="memory scope: one per fleet manager")
     args = parser.parse_args()
 
+    from .showcase import Presenter
+
+    versions = json.loads((ROOT / ".agents.json").read_text())
+    presenter = Presenter(
+        {
+            TRIAGE: {"version": versions["triage_hosted"], "role": "read-only",
+                     "tools": "FleetWise API (OpenAPI)  |  SOP manuals (File Search)  |  memory"},
+            WORKORDER: {"version": versions["workorder_hosted"], "role": "can book, human-gated",
+                        "tools": "get_dispatch_lines  |  list_qualified_technicians  |  approve_work_order (needs a human yes)  |  reject_work_order  |  memory"},
+        },
+        args.manager,
+        args.request,
+    )
     workflow = build_workflow(f"manager-{args.manager}")
-    print(f"Sequential workflow: {TRIAGE} (Foundry) -> {WORKORDER} (Foundry, approval-gated tools) | memory scope manager-{args.manager}")
-    pending = await _drain(workflow.run(args.request, stream=True), args.auto_approve)
+    pending = await _drain(workflow.run(args.request, stream=True), args.auto_approve, presenter)
     while pending:
-        pending = await _drain(workflow.run(stream=True, responses=pending), args.auto_approve)
-    print()
+        pending = await _drain(workflow.run(stream=True, responses=pending), args.auto_approve, presenter)
+    presenter.finish()
 
 
 if __name__ == "__main__":

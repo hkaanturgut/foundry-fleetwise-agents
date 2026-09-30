@@ -23,7 +23,7 @@ from .setup_memory import STORE
 
 TELL = (
     "A standing preference for all future sessions: I manage the HeavyDuty trucks personally, "
-    "so always list HeavyDuty vehicles first, and I prefer Aisha Khan for brake jobs when she is qualified."
+    "so always list HeavyDuty vehicles first, and I prefer Maria Lopez for brake jobs."
 )
 ASK = "Before we start: how do I like my maintenance list ordered, and who do I prefer for brake jobs?"
 

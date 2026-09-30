@@ -75,6 +75,8 @@ def approve_work_order(
 ) -> str:
     """Book (schedule) a work order in FleetWise. A FleetManager must approve every call."""
     technician_id = None
+    if technician_name and technician_name.strip().lower() in ("null", "none", "suggested", ""):
+        technician_name = None  # models sometimes send the word instead of a JSON null
     if technician_name:
         qualified = _qualified(service_type)
         match = next((t for t in qualified if t["name"].lower() == technician_name.strip().lower()), None)

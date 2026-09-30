@@ -360,14 +360,14 @@ python -m src.agents.memory_demo --manager kaan --reset
 
 ```text
 [session 1 | scope manager-kaan] manager: A standing preference for all future sessions: I manage the HeavyDuty
-trucks personally, so always list HeavyDuty vehicles first, and I prefer Aisha Khan for brake jobs when she is qualified.
+trucks personally, so always list HeavyDuty vehicles first, and I prefer Maria Lopez for brake jobs.
 [fleet-triage] Got it! HeavyDuty trucks will always be listed first ...
 
 ... waiting 30s while Foundry extracts and indexes the memory ...
 
 [session 2 | NEW session, same scope manager-kaan] manager: Before we start: how do I like my maintenance list
 ordered, and who do I prefer for brake jobs?
-[fleet-triage] You prefer HeavyDuty trucks listed first ... For brake jobs, you favor Aisha Khan whenever she's qualified.
+[fleet-triage] You prioritize HeavyDuty trucks first in maintenance lists, and Maria Lopez is your preferred technician for brake jobs.
 ```
 
 **Show:**
@@ -401,14 +401,14 @@ sequenceDiagram
     Mem-->>Tri: manager preferences
     Tri->>API: getDispatchLines, getVehicle (read-only)
     Tri->>WO: urgent list with reasons and SOPs
-    WO->>API: get_dispatch_lines (exact ids)
-    WO-->>Mgr: approve_work_order? (workflow pauses)
+    WO->>API: get_dispatch_lines, list_qualified_technicians
+    WO-->>Mgr: approval card per booking (workflow pauses)
     Mgr->>WO: yes / no per job
     WO->>API: POST /api/dispatch/approve (only if yes)
     WO-->>Mgr: booked / not booked
 ```
 
-**Say:** *"Triage has read-only tools. The work-order agent has a booking tool, and the framework, not the prompt, refuses to run it until a human approves. And watch the memory from Part 6 meet a guardrail: the manager prefers Aisha Khan, but the tool checks qualifications, and she is not certified for brakes."*
+**Say:** *"Triage has read-only tools. The work-order agent can book, but the framework, not the prompt, refuses to run that tool until a human says yes. And watch the memory from Part 6: the system suggests Dave Chen, but this manager prefers Maria Lopez, and she is qualified, so the booking goes to her."*
 
 **Run:**
 
@@ -416,19 +416,22 @@ sequenceDiagram
 python -m src.agents.maf_workflow --manager kaan
 ```
 
-**Expect:**
+**What you will see, step by step** (answer **y, n, y** at the approval cards):
 
-- `[fleet-triage]` streams the top 3, **HeavyDuty first because of memory**
-- `[fleet-workorder]` checks the remembered preference: it calls `list_qualified_technicians`, finds that **Aisha Khan is not qualified for brake work**, and keeps Dave Chen. Then three `[APPROVAL REQUIRED] approve_work_order {...}` prompts. Answer **y, n, y**
-- The final report: two booked with Dave Chen (and why not Aisha), one not booked
+| On screen | What it proves |
+| --- | --- |
+| Header panel: pattern, agent versions, manager, request | Two Foundry prompt agents, orchestrated by Agent Framework |
+| **Step 1 of 2, fleet-triage (read-only)**: `> api FleetWise API GET /api/dispatch`, sometimes `> manuals File Search`, then the answer, then `> memory recalled 1 fact(s)` and `cited: SOP-...md` | Foundry ran the OpenAPI tool, File Search, and memory **server-side**; the answer is grounded and personalized |
+| **Step 2 of 2, fleet-workorder (can book, human-gated)**: `> tool get_dispatch_lines()`, `> tool list_qualified_technicians(...)`, `> result qualified: Maria Lopez, Dave Chen` | Local function tools, declared in Foundry, executed in the workflow |
+| **HUMAN APPROVAL 1 of 3** card: vehicle, service, **Maria Lopez (qualified)**, why, the exact API call | The workflow is paused; nothing is written yet. Memory changed the technician; the tool checked qualifications |
+| `manager: approved` / `rejected`, then `> result booked (HTTP 201)` or `not booked: the manager said no, so the tool never ran` | The human decision controls the write |
+| **Verified in the FleetWise API** table: *Booked (work order scheduled)* for the two approvals, *Still overdue* for the rejection | Proof from the system of record, not from the agent's words |
 
-**Show:** refresh `GET /api/dispatch` in Swagger: exactly the two approved lines now show `AlreadyHandled`; the rejected one is still `Overdue`.
-
-**Show:** **Agents > fleet-workorder**: three function tools and memory. Foundry holds the tool schemas; the tools run inside the workflow, behind the approval gate.
+**Show:** **Agents > fleet-workorder**: four function tools and memory. Foundry holds the tool schemas; the tools run inside the workflow, behind the approval gate.
 
 ![fleet-workorder function tools and memory](docs/images/04-workorder-function-tools-and-memory.jpg)
 
-**Fallback:** add `--auto-approve`; or `python -m src.agents.dispatch_workflow` (plain Python version). Reset data with `scripts/reset-api.sh`.
+**Fallback:** add `--auto-approve`; use `--manager rehearsal` (pre-seeded memory); or `python -m src.agents.dispatch_workflow` (plain Python version). Reset data with `scripts/reset-api.sh` before a second run.
 
 ---
 
@@ -636,6 +639,7 @@ scripts/preflight.sh
 | `src/legacy-api/` | The FleetWise .NET 8 API, containerized |
 | `src/agents/deploy.py` | **Live deploy** of agent versions (naive, hardened, `--memory`, workorder) |
 | `src/agents/maf_workflow.py` | Agent Framework sequential workflow with human approval |
+| `src/agents/showcase.py` | Stage view: tool trace, memory recall, approval cards, system-of-record check |
 | `src/agents/workorder_tools.py` | Function tools (declared in Foundry, executed in the workflow): dispatch lines, qualified technicians, approve (human-gated), reject |
 | `src/agents/memory_demo.py` | Memory across two sessions |
 | `src/agents/setup_*.py` | Vector store, memory store, baseline agents |
