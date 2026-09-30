@@ -26,4 +26,5 @@ public record DispatchLine(
     DispatchTrigger Trigger,
     int? KmOverdue,
     int DaysUntilDue,
-    TechnicianSuggestion? Suggestion);
+    TechnicianSuggestion? Suggestion,
+    string? VehicleClass = null); // additive: lets callers (and agents) group LightDuty / HeavyDuty

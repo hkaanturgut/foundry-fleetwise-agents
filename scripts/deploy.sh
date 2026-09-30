@@ -12,13 +12,13 @@ terraform init -input=false -upgrade >/dev/null
 terraform apply -input=false -auto-approve -var "subscription_id=$SUBSCRIPTION_ID" -var "location=$LOCATION"
 
 ACR="$(terraform output -raw acr_name)"
-az acr build --registry "$ACR" --image fleetwise-api:v1 "$ROOT/src/legacy-api" --no-logs
+az acr build --registry "$ACR" --image fleetwise-api:v2 "$ROOT/src/legacy-api" --no-logs
 
 # Pin every input in terraform.tfvars so a later plain `terraform apply` never reverts the API image.
 cat > terraform.tfvars <<TFVARS
 subscription_id = "$SUBSCRIPTION_ID"
 location        = "$LOCATION"
-api_image       = "${ACR}.azurecr.io/fleetwise-api:v1"
+api_image       = "${ACR}.azurecr.io/fleetwise-api:v2"
 TFVARS
 terraform apply -input=false -auto-approve
 

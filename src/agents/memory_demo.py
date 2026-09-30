@@ -22,10 +22,10 @@ from .common import PROJECT_ENDPOINT, ROOT, TRIAGE
 from .setup_memory import STORE
 
 TELL = (
-    "A standing preference for all future sessions: I manage the HeavyDuty trucks personally, "
-    "so always list HeavyDuty vehicles first, and I prefer Maria Lopez for brake jobs."
+    "A standing preference for all future sessions: for brake jobs I prefer Maria Lopez as the technician. "
+    "She knows our brake fleet best."
 )
-ASK = "Before we start: how do I like my maintenance list ordered, and who do I prefer for brake jobs?"
+ASK = "Before we start: which technician do I prefer for brake jobs?"
 
 
 def _agent(scope: str) -> FoundryAgent:

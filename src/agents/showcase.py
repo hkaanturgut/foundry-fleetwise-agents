@@ -151,13 +151,13 @@ class Presenter:
         if named:
             from .workorder_tools import _qualified
 
-            qualified = [t["name"] for t in _qualified(str(args.get("service_type")))]
+            qualified = [t["name"] for t in _qualified(str(args.get("service_type")), line.get("vehicleClass"))]
             if named.lower() not in (q.lower() for q in qualified):
                 technician += f"  [bold red](NOT qualified: the tool will refuse. Qualified: {', '.join(qualified)})[/]"
             else:
                 technician += "  [green](qualified)[/]"
         table = Table.grid(padding=(0, 2))
-        table.add_row("[bold]Vehicle[/]", f"{line.get('unitNumber', args.get('vehicle_id'))}")
+        table.add_row("[bold]Vehicle[/]", f"{line.get('unitNumber', args.get('vehicle_id'))}  ({line.get('vehicleClass', '?')})")
         table.add_row("[bold]Service[/]", str(args.get("service_type")))
         table.add_row("[bold]Technician[/]", technician)
         table.add_row("[bold]Why[/]", ", ".join(why) or str(line.get("status", "")))
@@ -182,14 +182,14 @@ class Presenter:
         response = httpx.get(f"{API_URL}/api/dispatch", headers={"X-Tenant-Id": "1"}, timeout=30)
         lines = response.json().get("lines", []) if response.status_code == 200 else []
         table = Table(title="Verified in the FleetWise API (system of record), not the agent's words", title_justify="left")
-        for column in ("Vehicle", "Service", "Manager decision", "Status in FleetWise now"):
+        for column in ("Vehicle", "Class", "Service", "Manager decision", "Status in FleetWise now"):
             table.add_column(column)
         for args, approved in self.decisions:
             line = next((l for l in lines if l["vehicleId"] == args.get("vehicle_id") and l["serviceType"] == args.get("service_type")), {})
             status = line.get("status", "?")
             color = "green" if status == "AlreadyHandled" else "yellow"
             status = {"AlreadyHandled": "Booked (work order scheduled)", "Overdue": "Still overdue, not booked"}.get(status, status)
-            table.add_row(line.get("unitNumber", str(args.get("vehicle_id"))), str(args.get("service_type")),
+            table.add_row(line.get("unitNumber", str(args.get("vehicle_id"))), line.get("vehicleClass", "?"), str(args.get("service_type")),
                           "approved" if approved else "rejected", f"[{color}]{status}[/]")
         console.print()
         console.print(table)

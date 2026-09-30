@@ -105,7 +105,7 @@ public class DispatcherService
                     suggestion = await _matcher.SuggestAsync(tenantId, schedule.RequiredSkill);
                 }
 
-                lines.Add(new DispatchLine(vehicle.Id, vehicle.UnitNumber, schedule.ServiceType, status, trigger, kmOverdue, daysUntilDue, suggestion));
+                lines.Add(new DispatchLine(vehicle.Id, vehicle.UnitNumber, schedule.ServiceType, status, trigger, kmOverdue, daysUntilDue, suggestion, vehicle.VehicleClass));
             }
         }
 
