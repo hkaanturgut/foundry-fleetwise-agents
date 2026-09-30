@@ -408,7 +408,7 @@ Microsoft's open-source SDK (Python, .NET, Go) for agents and **multi-agent work
 | --- | --- | --- |
 | `FoundryAgent` | `src/agents/maf_workflow.py` | Call a Foundry agent **by name and version** |
 | `SequentialBuilder` | `build_workflow()` | **Sequential orchestration**: triage output becomes work-order input |
-| `@tool(approval_mode="always_require")` | `src/agents/workorder_tools.py` | The workflow **pauses** and emits an approval request before any booking |
+| `@tool(approval_mode="always_require")` | `src/agents/workorder/tools.py` | The workflow **pauses** and emits an approval request before any booking |
 | `workflow.run(responses=...)` | `_drain()` | Resumes with the manager's yes or no |
 | `default_headers` | `x-memory-user-id` | Routes each manager to their own memory scope |
 
@@ -499,7 +499,7 @@ GATE FAIL: do not promote this version
 
 ### 8.4 Fix, redeploy, re-evaluate, promote
 
-The fix is clearer rules, not a bigger model (`HARDENED` in `src/agents/setup_agents.py`):
+The fix is clearer rules, not a bigger model (`HARDENED` in `src/agents/triage/instructions.py`):
 
 ```text
 Quote procedures only from the maintenance manuals and name the SOP you used.
@@ -800,10 +800,12 @@ flowchart LR
 | `src/legacy-api/` | The FleetWise .NET 8 API (dispatch rules in `Services/DispatcherService.cs`), containerized, with tests |
 | `data/manuals/` | The 5 SOP manuals that go into the vector store |
 | `openapi/` | The read-only OpenAPI contract the triage agent uses |
-| `src/agents/setup_agents.py` | Vector store and baseline agents; the `NAIVE` and `HARDENED` instructions |
-| `src/agents/setup_memory.py` | Foundry memory store |
+| `src/agents/triage/` | **fleet-triage agent**: `instructions.py` (`NAIVE`, `HARDENED`), `agent.py` (model + OpenAPI, File Search, memory tools) |
+| `src/agents/workorder/` | **fleet-workorder agent**: `instructions.py`, `tools.py` (function tools: dispatch lines, qualified technicians, approve (human-gated), reject), `agent.py` |
 | `src/agents/deploy.py` | Deploy agent versions (naive, hardened, `--memory`, workorder) |
-| `src/agents/workorder_tools.py` | Function tools: dispatch lines, qualified technicians, approve (human-gated), reject |
+| `src/agents/setup_agents.py` | Vector store and the staged baseline triage versions (stage1, stage2, v1, v2) |
+| `src/agents/setup_foundry_agents.py` | Both workflow agents with memory, in one step |
+| `src/agents/setup_memory.py` | Foundry memory store and the memory search tool |
 | `src/agents/maf_workflow.py` | Agent Framework sequential workflow with human approval |
 | `src/agents/showcase.py` | Terminal view: tool trace, memory recall, approval cards, system-of-record check |
 | `src/agents/memory_demo.py` | Memory across two sessions |

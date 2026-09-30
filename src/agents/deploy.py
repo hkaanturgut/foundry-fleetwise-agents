@@ -23,12 +23,9 @@ import os
 import sys
 import uuid
 
-from azure.ai.projects.models import FileSearchTool, PromptAgentDefinition
-
 from .common import MODEL, PROJECT_ENDPOINT, ROOT, TRIAGE, WORKORDER, project, tool_spec
-from .setup_agents import HARDENED, NAIVE, openapi_tool
-from .setup_foundry_agents import memory_tool
-from .workorder_tools import WORKORDER_INSTRUCTIONS, foundry_tool_definitions
+from .triage import agent as triage
+from .workorder import agent as workorder
 
 AGENTS_FILE = ROOT / ".agents.json"
 
@@ -51,14 +48,9 @@ def _save(**keys: str) -> None:
 
 
 def deploy_triage(profile: str, with_memory: bool) -> None:
-    instructions = {"naive": NAIVE, "hardened": HARDENED}[profile]
     versions = json.loads(AGENTS_FILE.read_text())
-    tools = [openapi_tool(), FileSearchTool(vector_store_ids=[versions["vector_store"]])]
-    if with_memory:
-        tools.append(memory_tool())
     agent = project().agents.create_version(
-        agent_name=TRIAGE,
-        definition=PromptAgentDefinition(model=MODEL, instructions=instructions, tools=tools),
+        agent_name=TRIAGE, definition=triage.definition(profile, versions["vector_store"], memory=with_memory)
     )
     key = "triage_hosted" if with_memory else f"live_{profile}"
     _save(**{key: str(agent.version)})
@@ -72,12 +64,7 @@ def deploy_triage(profile: str, with_memory: bool) -> None:
 
 
 def deploy_workorder() -> None:
-    agent = project().agents.create_version(
-        agent_name=WORKORDER,
-        definition=PromptAgentDefinition(
-            model=MODEL, instructions=WORKORDER_INSTRUCTIONS, tools=[*foundry_tool_definitions(), memory_tool()]
-        ),
-    )
+    agent = project().agents.create_version(agent_name=WORKORDER, definition=workorder.definition())
     _save(workorder_hosted=str(agent.version))
     print(f"Deployed {WORKORDER}:{agent.version}")
     print(f"  model   {MODEL}")

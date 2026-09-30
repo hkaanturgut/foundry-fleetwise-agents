@@ -149,7 +149,7 @@ class Presenter:
         if line.get("daysUntilDue") is not None and line["daysUntilDue"] < 0:
             why.append(f"{-line['daysUntilDue']} days overdue")
         if named:
-            from .workorder_tools import _qualified
+            from .workorder.tools import _qualified
 
             qualified = [t["name"] for t in _qualified(str(args.get("service_type")), line.get("vehicleClass"))]
             if named.lower() not in (q.lower() for q in qualified):

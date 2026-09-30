@@ -10,12 +10,19 @@ from __future__ import annotations
 
 import os
 
-from azure.ai.projects.models import MemoryStoreDefaultDefinition, MemoryStoreDefaultOptions
+from azure.ai.projects.models import MemorySearchPreviewTool, MemoryStoreDefaultDefinition, MemoryStoreDefaultOptions
 from azure.core.exceptions import ResourceNotFoundError
 
 from .common import MODEL, project
 
 STORE = "fleetwise-manager-memory"
+MEMORY_UPDATE_DELAY = 5  # seconds of inactivity before Foundry writes new memories (default 300)
+
+
+def memory_tool() -> MemorySearchPreviewTool:
+    """Memory search tool for an agent definition. {{$userId}} comes from the x-memory-user-id header,
+    so each fleet manager gets an isolated scope."""
+    return MemorySearchPreviewTool(memory_store_name=STORE, scope="{{$userId}}", update_delay=MEMORY_UPDATE_DELAY)
 
 
 def main() -> None:

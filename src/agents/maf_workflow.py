@@ -30,7 +30,7 @@ from agent_framework.orchestrations import SequentialBuilder
 from azure.identity import AzureCliCredential
 
 from .common import PROJECT_ENDPOINT, ROOT, TRIAGE, WORKORDER
-from .workorder_tools import TOOLS
+from .workorder.tools import TOOLS
 
 
 class _DropExpectedWarnings(logging.Filter):
