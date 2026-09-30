@@ -93,6 +93,12 @@ In short: **Foundry is where agents live**: it hosts them, versions them, secure
 
 **[Microsoft Agent Framework](https://learn.microsoft.com/agent-framework/overview/)** is Microsoft's open-source SDK (Python and .NET) for writing agents and **multi-agent workflows** in code. It is the successor to Semantic Kernel and AutoGen, from the same teams.
 
+> **What were Semantic Kernel and AutoGen?**
+> - **[Semantic Kernel](https://learn.microsoft.com/semantic-kernel/overview/)**: Microsoft's enterprise SDK (C#, Python, Java) for adding LLMs to apps: plugins, connectors to models, telemetry. Strong on production features, less on multi-agent patterns.
+> - **[AutoGen](https://github.com/microsoft/autogen)**: a Microsoft Research framework for multi-agent conversations, where agents talk to each other to solve a task. Strong on multi-agent ideas, less on enterprise features.
+>
+> Agent Framework merges the two: AutoGen's multi-agent patterns with Semantic Kernel's enterprise foundations. New projects should start on Agent Framework; both have [migration guides](https://learn.microsoft.com/agent-framework/migration-guide/from-semantic-kernel/).
+
 It gives you:
 
 - **Agents**: one interface over Foundry, Azure OpenAI, OpenAI, and other providers.
