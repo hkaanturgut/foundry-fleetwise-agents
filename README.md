@@ -21,8 +21,11 @@ Everything runs in [Microsoft Foundry](https://learn.microsoft.com/azure/foundry
 8. [Walkthrough: run it yourself](#8-walkthrough-run-it-yourself)
 9. [How evaluation works](#9-how-evaluation-works)
 10. [How memory works](#10-how-memory-works)
-11. [What it takes to go to production](#11-what-it-takes-to-go-to-production)
-12. [Troubleshooting](#12-troubleshooting) | [Repository map](#13-repository-map) | [Presenting this as a session](#14-presenting-this-as-a-session) | [References](#references)
+11. [Token usage monitoring](#11-token-usage-monitoring)
+12. [What it takes to go to production](#12-what-it-takes-to-go-to-production)
+13. [Troubleshooting](#13-troubleshooting) | [Repository map](#14-repository-map) | [Presenting this as a session](#15-presenting-this-as-a-session) | [References](#references)
+
+> **Running the demo?** The short checklist is in [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
 ---
 
@@ -240,30 +243,9 @@ A fleet manager wants to ask, in plain language, *"What are the 3 most urgent ma
 
 ## 3. The solution at a glance
 
-```mermaid
-flowchart LR
-    Mgr["Fleet manager"]
-    subgraph Proc["Workflow: Microsoft Agent Framework"]
-        SEQ["SequentialBuilder"]
-        EXE["Tool execution<br/>+ human approval gate"]
-    end
-    subgraph F["Microsoft Foundry project"]
-        TRI["fleet-triage<br/>prompt agent, read-only"]
-        WO["fleet-workorder<br/>prompt agent, can book"]
-        MEM[("Memory store<br/>one scope per manager")]
-        VS[("Vector store<br/>SOP manuals")]
-        EV["Evaluations"]
-        TR["Traces"]
-    end
-    API["FleetWise legacy API<br/>.NET 8 on Container Apps"]
-    Mgr -- "ask / approve" --> SEQ
-    SEQ --> TRI --> WO
-    TRI -- "OpenAPI tool (read-only)" --> API
-    TRI -- "File Search" --> VS
-    WO -- "function tools" --> EXE
-    EXE -- "book (only after a human yes)" --> API
-    TRI & WO <-- "memory search" --> MEM
-```
+![FleetWise architecture on Microsoft Foundry](docs/images/architecture.png)
+
+*Drawn as code with the official [Azure architecture icons](https://learn.microsoft.com/azure/architecture/icons/): [docs/architecture/architecture.py](docs/architecture/architecture.py) ([SVG](docs/images/architecture.svg)).*
 
 | Component | What it is | Where it runs |
 | --- | --- | --- |
@@ -273,6 +255,7 @@ flowchart LR
 | Knowledge | 5 SOP manuals in a Foundry vector store | Foundry |
 | Memory | Per-manager long-term memory | Foundry memory store |
 | Evaluations | Quality, safety, and business-rule checks per agent version | Foundry |
+| Token monitoring | Tokens per run, agent, and version, plus whole-account usage, in one dashboard | Application Insights, Log Analytics, Azure Workbook (`scripts/setup-monitoring.sh`) |
 | Platform | Foundry account + project, gpt-4o and text-embedding-3-small, App Insights, ACR, Container Apps, RBAC | Terraform (`infra/`) |
 
 ## 4. How the agents decide what needs maintenance, and in what order
@@ -343,7 +326,7 @@ LSL-016  BrakeInspection  Overdue  Distance  3,997 km over   HeavyDuty   suggest
 ### The vector store
 
 - **What:** a Foundry-managed vector store named `fleetwise-manuals`. It holds 5 markdown files, 7.9 KB in total. Foundry chunked them (up to 800 tokens per chunk, 400 overlap), embedded them, and indexes them. You manage no search service.
-- **Where:** inside the Foundry project, in storage that Foundry Agent Service manages for you. No Azure AI Search resource or storage account of your own is involved in this demo. For production you can bring your own (see [section 11](#11-what-it-takes-to-go-to-production)).
+- **Where:** inside the Foundry project, in storage that Foundry Agent Service manages for you. No Azure AI Search resource or storage account of your own is involved in this demo. For production you can bring your own (see [section 12](#12-what-it-takes-to-go-to-production)).
 - **How it was created:** `python -m src.agents.setup_agents` uploads `data/manuals/*.md` and records the vector store id in `.agents.json`.
 - **How it is used:** the File Search tool in `fleet-triage`'s definition points at it. When a question needs a procedure, the agent searches it, and the answer carries a citation such as `SOP-101-brake-inspection.md`.
 - **Where to see it:** Foundry portal > **Agents** > `fleet-triage` > **Tools** > **File search** shows `fleetwise-manuals` and its files.
@@ -425,16 +408,20 @@ Prerequisites: an Azure subscription, Azure CLI, Terraform 1.6+, Python 3.11+.
 
 ```bash
 az login
-SUBSCRIPTION_ID=<your-subscription-id> scripts/deploy.sh eastus2   # Terraform + API image + .env
+SUBSCRIPTION_ID=<your-subscription-id> scripts/deploy.sh eastus2   # Terraform + API image + .env + token dashboard
 python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
-python -m src.agents.setup_agents          # vector store with the SOP manuals + baseline agents
+python -m src.agents.setup_agents          # vector store with the SOP manuals + baseline agents (once)
 python -m src.agents.setup_memory          # Foundry memory store
 python -m src.agents.deploy triage hardened --memory   # triage agent used by the workflow
 python -m src.agents.deploy workorder      # work-order agent
 scripts/preflight.sh                       # every line green
 ```
 
-Before each run through: `scripts/reset-api.sh` restores the demo data.
+The `--memory` deploy here is a safety net: the workflow works even if you skip the stage steps below, which deploy it again.
+
+Before each run through, restore the demo data, then check: `scripts/reset-api.sh`, wait 20 seconds, `scripts/preflight.sh`. The full checklist is in [docs/RUNBOOK.md](docs/RUNBOOK.md).
+
+> **Already deployed, but no `.env` (new machine, lost Terraform state)?** Do not run `deploy.sh` or `terraform apply`: without state, Terraform tries to create everything again. Write `.env` by hand instead (see [Troubleshooting](#13-troubleshooting)).
 
 ### 8.2 Deploy an agent version
 
@@ -566,6 +553,8 @@ Session 2 has no chat history; the answer comes from the memory store. See it in
 
 ### 8.6 Run the multi-agent workflow
 
+Run 8.5 first: without the stored preference, the workflow suggests Dave Chen instead of Maria Lopez.
+
 ```bash
 python -m src.agents.maf_workflow --manager kaan
 ```
@@ -587,6 +576,19 @@ Real result:
 │ LSL-010 │ LightDuty │ BrakeInspection │ approved │ Booked (work order scheduled) │
 │ LSL-023 │ LightDuty │ BrakeInspection │ rejected │ Still overdue, not booked     │
 │ LSL-016 │ HeavyDuty │ BrakeInspection │ approved │ Booked (work order scheduled) │
+```
+
+The run ends with its token usage per agent (the same numbers land in the dashboard, see [section 11](#11-token-usage-monitoring)):
+
+```text
+Token usage, run 810c4a75
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━┓
+┃ agent           ┃ responses ┃  input ┃ output ┃  total ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━┩
+│ fleet-triage    │         1 │  8,342 │    296 │  8,638 │
+│ fleet-workorder │         3 │  8,475 │    149 │  8,624 │
+│ all             │         4 │ 16,817 │    445 │ 17,262 │
+└─────────────────┴───────────┴────────┴────────┴────────┘
 ```
 
 Then open **Agents** > `fleet-workorder` > **Traces** in the portal to see the run.
@@ -741,7 +743,42 @@ Both run in `.github/workflows/agent-eval-gate.yml` on every pull request that c
 
 **Permissions:** the caller needs **Cognitive Services OpenAI User** (memory calls the embedding deployment), and the project's managed identity needs **Foundry User** on the project (for the portal's Memory page). Both are in `infra/main.tf`.
 
-## 11. What it takes to go to production
+## 11. Token usage monitoring
+
+Every token an agent consumes is visible per command, per agent, and per agent version, in Azure Monitor.
+
+**Where the numbers come from**
+
+| Source | What it records | Covers |
+| --- | --- | --- |
+| Foundry server-side spans (`chat`, with `gen_ai.usage.input_tokens` / `output_tokens`) | Every model call an agent makes, with agent name, version, and model | All agent calls, from any caller |
+| Client spans from this repo (`src/agents/telemetry.py`) | One `fleetwise.run` root span per command (`ask_agent`, `memory_demo`, `maf_workflow`) with script and manager; Agent Framework spans under it | Groups the server spans into runs: trace context flows to Foundry, so they share one operation id |
+| Foundry account metrics (`InputTokens`, `OutputTokens`) | All model traffic on the account | Also evaluation judges, memory extraction, embeddings |
+
+The token table printed at the end of each command counts the usage each response reports; the dashboard counts Foundry's per-call spans. They can differ by a few tokens when an agent calls a server-side tool.
+
+The client sends to the Application Insights resource connected to the Foundry project (it asks the project for the connection string, so there is nothing to configure). Set `FLEETWISE_TELEMETRY=off` to run without it.
+
+**The dashboard:** Azure portal > **Monitor** > **Workbooks** > **FleetWise token usage** (created by `scripts/setup-monitoring.sh`, which `deploy.sh` runs; rerun it any time). It shows:
+
+- totals and estimated cost (prices are parameters, default gpt-4o Global Standard);
+- tokens by agent, and over time;
+- **one row per demo command**: script, manager, agent versions, model calls, tokens, cost;
+- **per agent version**: tokens per call, to compare `naive` and `hardened`;
+- whole-account tokens per hour, including evaluations and memory.
+
+Traces arrive in Application Insights within 1 to 3 minutes; account metrics within about 5. The same data can be queried directly in Log Analytics, for example:
+
+```kusto
+AppDependencies
+| where tostring(Properties["microsoft.foundry"]) == "True" and tostring(Properties["gen_ai.operation.name"]) == "chat"
+| summarize Input = sum(tolong(Properties["gen_ai.usage.input_tokens"])), Output = sum(tolong(Properties["gen_ai.usage.output_tokens"]))
+    by Agent = tostring(Properties["gen_ai.agent.name"]), Version = tostring(Properties["gen_ai.agent.version"])
+```
+
+> Foundry's server-side spans include prompts and responses (`gen_ai.input.messages`). Treat the Application Insights resource as sensitive and restrict who can read it.
+
+## 12. What it takes to go to production
 
 ```mermaid
 flowchart LR
@@ -781,18 +818,21 @@ flowchart LR
 
 **Definition of done for go-live:** every write needs an authenticated human approval, the eval gate blocks regressions, no public endpoints, and on-call can roll back any agent version in minutes.
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 | Problem | Fix |
 | --- | --- |
 | `preflight.sh` says `.env` is missing | Run from the repo folder that was set up (`scripts/deploy.sh` writes `.env`) |
+| `.env` values empty, `terraform output` warns "No outputs found" | The local Terraform state is missing (new machine or lost `infra/terraform.tfstate`). Do **not** run `deploy.sh`. Write `.env` by hand from the resource group: `FOUNDRY_PROJECT_ENDPOINT=https://<aif-name>.services.ai.azure.com/api/projects/proj-fleetwise`, `FOUNDRY_MODEL=gpt-4o`, `FOUNDRY_EMBEDDING_MODEL=text-embedding-3-small`, `FLEETWISE_API_URL=https://<fqdn of ca-fleetwise-api>`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP` |
+| `KeyError` reading `.agents.json` | Rerun the deploy for the missing key: `live_naive`, `live_hardened`, `triage_hosted` (`deploy triage hardened --memory`), `workorder_hosted` (`deploy workorder`) |
+| Token dashboard empty | Wait 1 to 3 minutes; check the time range; rerun `scripts/setup-monitoring.sh` |
 | Bookings left over from a previous run | `scripts/reset-api.sh` (restarts the API; the data re-seeds in about 20 seconds) |
 | Memory shows nothing | Wait 10 more seconds, then `python -m src.agents.memory_demo --recall-only --manager kaan` |
 | `SSL: CERTIFICATE_VERIFY_FAILED` on macOS | `pip install certifi` (the code then uses it automatically) |
 | Memory calls return 401 | Assign **Cognitive Services OpenAI User** to the caller; wait a few minutes for RBAC |
 | An eval run is slow | Open **Evaluations** in the portal; earlier runs of the same versions are there |
 
-## 13. Repository map
+## 14. Repository map
 
 | Path | Purpose |
 | --- | --- |
@@ -810,12 +850,16 @@ flowchart LR
 | `src/agents/showcase.py` | Terminal view: tool trace, memory recall, approval cards, system-of-record check |
 | `src/agents/memory_demo.py` | Memory across two sessions |
 | `src/agents/ask_agent.py` | Ask any agent version one question |
+| `src/agents/telemetry.py` | Token telemetry: run spans to Application Insights, token table at the end of each command |
 | `evals/` | Test cases, local rule runner, Foundry cloud eval with the release gate |
 | `.github/workflows/agent-eval-gate.yml` | Both eval layers on every agent change |
-| `scripts/` | deploy, write-env, preflight, reset-api |
+| `scripts/` | deploy, write-env, preflight, reset-api, setup-monitoring (token dashboard) |
+| `infra/monitoring/` | The token usage workbook definition |
+| `docs/RUNBOOK.md` | Demo checklist: setup, before each run, on stage, recovery |
+| `docs/architecture/` | Architecture diagram as code, with the icons it uses |
 | `docs/images/` | Screenshots from the live Foundry project and official docs |
 
-## 14. Presenting this as a session
+## 15. Presenting this as a session
 
 The walkthrough in [section 8](#8-walkthrough-run-it-yourself) is also a 50-minute live session:
 
@@ -830,9 +874,9 @@ The walkthrough in [section 8](#8-walkthrough-run-it-yourself) is also a 50-minu
 | 32-36 | Memory (8.5) |
 | 36-43 | The multi-agent workflow with human approval (8.6) |
 | 43-46 | Traces, versions, evaluation runs in the portal |
-| 46-50 | Production (section 11) and Q&A |
+| 46-50 | Production (section 12) and Q&A |
 
-Before starting: `scripts/preflight.sh` and `scripts/reset-api.sh`. Each live eval takes about a minute. Start it, then switch to the portal's **Evaluations** page while it runs.
+Before starting, follow [docs/RUNBOOK.md](docs/RUNBOOK.md): `scripts/reset-api.sh`, wait 20 seconds, then `scripts/preflight.sh`. Each live eval takes about a minute. Start it, then switch to the portal's **Evaluations** page while it runs. Close on the **FleetWise token usage** workbook: what the whole session cost.
 
 ## References
 

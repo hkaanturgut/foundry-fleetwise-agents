@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# One command: Terraform platform -> build the FleetWise image in ACR -> point the container app at it -> write .env.
+# One command: Terraform platform -> build the FleetWise image in ACR -> point the container app at it -> write .env
+# -> token usage dashboard.
 # Usage: SUBSCRIPTION_ID=<id> scripts/deploy.sh [location]
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -23,3 +24,4 @@ TFVARS
 terraform apply -input=false -auto-approve
 
 "$ROOT/scripts/write-env.sh"
+"$ROOT/scripts/setup-monitoring.sh"

@@ -18,6 +18,7 @@ import json
 from agent_framework.foundry import FoundryAgent
 from azure.identity import AzureCliCredential
 
+from . import telemetry
 from .common import PROJECT_ENDPOINT, ROOT, TRIAGE
 from .setup_memory import STORE
 
@@ -40,13 +41,7 @@ def _agent(scope: str) -> FoundryAgent:
     )
 
 
-async def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--manager", default="kaan")
-    parser.add_argument("--wait", type=int, default=30, help="seconds for the store to index the new memory")
-    parser.add_argument("--recall-only", action="store_true")
-    parser.add_argument("--reset", action="store_true", help="forget everything in this scope first")
-    args = parser.parse_args()
+async def main(args: argparse.Namespace) -> None:
     scope = f"manager-{args.manager}"
 
     if args.reset:
@@ -60,6 +55,7 @@ async def main() -> None:
         agent = _agent(scope)
         print(f"[session 1 | scope {scope}] manager: {TELL}")
         reply = await agent.run(TELL, session=agent.create_session())
+        telemetry.count(TRIAGE, reply.usage_details)
         print(f"[fleet-triage] {reply.text}\n")
         print(f"... waiting {args.wait}s while Foundry extracts and indexes the memory ...\n")
         await asyncio.sleep(args.wait)
@@ -67,8 +63,16 @@ async def main() -> None:
     agent = _agent(scope)
     print(f"[session 2 | NEW session, same scope {scope}] manager: {ASK}")
     reply = await agent.run(ASK, session=agent.create_session())
+    telemetry.count(TRIAGE, reply.usage_details)
     print(f"[fleet-triage] {reply.text}")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--manager", default="kaan")
+    parser.add_argument("--wait", type=int, default=30, help="seconds for the store to index the new memory")
+    parser.add_argument("--recall-only", action="store_true")
+    parser.add_argument("--reset", action="store_true", help="forget everything in this scope first")
+    cli = parser.parse_args()
+    with telemetry.run("memory_demo", manager=cli.manager):
+        asyncio.run(main(cli))

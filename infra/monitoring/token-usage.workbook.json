@@ -1,0 +1,230 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# FleetWise token usage\nEvery model call a Foundry agent makes, from Foundry's server-side `chat` spans in Application Insights. Runs started from this repo (`ask_agent`, `memory_demo`, `maf_workflow`) are grouped by their `fleetwise.run` root span. Cost is an estimate from the prices below (defaults: gpt-4o Global Standard, USD per 1M tokens)."
+      },
+      "name": "title"
+    },
+    {
+      "type": 9,
+      "name": "parameters",
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "style": "pills",
+        "parameters": [
+          {
+            "id": "6a1f0c1e-0001-4a51-9a51-000000000001",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time range",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 86400000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 3600000
+                },
+                {
+                  "durationMs": 14400000
+                },
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 259200000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 2592000000
+                }
+              ],
+              "allowCustom": true
+            }
+          },
+          {
+            "id": "6a1f0c1e-0001-4a51-9a51-000000000002",
+            "version": "KqlParameterItem/1.0",
+            "name": "InputPrice",
+            "label": "USD / 1M input tokens",
+            "type": 1,
+            "isRequired": true,
+            "value": "2.50"
+          },
+          {
+            "id": "6a1f0c1e-0001-4a51-9a51-000000000003",
+            "version": "KqlParameterItem/1.0",
+            "name": "OutputPrice",
+            "label": "USD / 1M output tokens",
+            "type": 1,
+            "isRequired": true,
+            "value": "10.00"
+          }
+        ]
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let calls = AppDependencies\n| where tostring(Properties[\"microsoft.foundry\"]) == \"True\" and tostring(Properties[\"gen_ai.operation.name\"]) == \"chat\"\n| extend Agent = tostring(Properties[\"gen_ai.agent.name\"]), Version = tostring(Properties[\"gen_ai.agent.version\"]),\n         Model = tostring(Properties[\"gen_ai.response.model\"]),\n         Input = tolong(Properties[\"gen_ai.usage.input_tokens\"]), Output = tolong(Properties[\"gen_ai.usage.output_tokens\"])\n| extend Agent = iif(isempty(Agent), \"(model call without agent)\", Agent);\nlet cost = (i: long, o: long) { round(i / 1000000.0 * {InputPrice} + o / 1000000.0 * {OutputPrice}, 4) };\ncalls\n| summarize Input = sum(Input), Output = sum(Output), Calls = count()\n| extend Total = Input + Output, Cost = cost(Input, Output)\n| project Metric = pack_array(\"Total tokens\", \"Input tokens\", \"Output tokens\", \"Model calls\", \"Estimated cost (USD)\"),\n          Value = pack_array(Total, Input, Output, Calls, Cost)\n| mv-expand Metric to typeof(string), Value to typeof(real)",
+        "size": 4,
+        "title": "Agent token usage",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Metric",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Value",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            },
+            "numberFormat": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "maximumFractionDigits": 4
+              }
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "name": "totals"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let calls = AppDependencies\n| where tostring(Properties[\"microsoft.foundry\"]) == \"True\" and tostring(Properties[\"gen_ai.operation.name\"]) == \"chat\"\n| extend Agent = tostring(Properties[\"gen_ai.agent.name\"]), Version = tostring(Properties[\"gen_ai.agent.version\"]),\n         Model = tostring(Properties[\"gen_ai.response.model\"]),\n         Input = tolong(Properties[\"gen_ai.usage.input_tokens\"]), Output = tolong(Properties[\"gen_ai.usage.output_tokens\"])\n| extend Agent = iif(isempty(Agent), \"(model call without agent)\", Agent);\nlet cost = (i: long, o: long) { round(i / 1000000.0 * {InputPrice} + o / 1000000.0 * {OutputPrice}, 4) };\ncalls\n| summarize Input = sum(Input), Output = sum(Output) by Agent\n| order by Input + Output desc",
+        "size": 0,
+        "title": "Tokens by agent",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart",
+        "chartSettings": {
+          "xAxis": "Agent",
+          "seriesLabelSettings": [
+            {
+              "seriesName": "Input",
+              "color": "blue"
+            },
+            {
+              "seriesName": "Output",
+              "color": "orange"
+            }
+          ]
+        }
+      },
+      "name": "by-agent",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let calls = AppDependencies\n| where tostring(Properties[\"microsoft.foundry\"]) == \"True\" and tostring(Properties[\"gen_ai.operation.name\"]) == \"chat\"\n| extend Agent = tostring(Properties[\"gen_ai.agent.name\"]), Version = tostring(Properties[\"gen_ai.agent.version\"]),\n         Model = tostring(Properties[\"gen_ai.response.model\"]),\n         Input = tolong(Properties[\"gen_ai.usage.input_tokens\"]), Output = tolong(Properties[\"gen_ai.usage.output_tokens\"])\n| extend Agent = iif(isempty(Agent), \"(model call without agent)\", Agent);\nlet cost = (i: long, o: long) { round(i / 1000000.0 * {InputPrice} + o / 1000000.0 * {OutputPrice}, 4) };\ncalls\n| summarize Tokens = sum(Input + Output) by bin(TimeGenerated, {TimeRange:grain}), Agent",
+        "size": 0,
+        "title": "Tokens over time, by agent",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "name": "over-time",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let calls = AppDependencies\n| where tostring(Properties[\"microsoft.foundry\"]) == \"True\" and tostring(Properties[\"gen_ai.operation.name\"]) == \"chat\"\n| extend Agent = tostring(Properties[\"gen_ai.agent.name\"]), Version = tostring(Properties[\"gen_ai.agent.version\"]),\n         Model = tostring(Properties[\"gen_ai.response.model\"]),\n         Input = tolong(Properties[\"gen_ai.usage.input_tokens\"]), Output = tolong(Properties[\"gen_ai.usage.output_tokens\"])\n| extend Agent = iif(isempty(Agent), \"(model call without agent)\", Agent);\nlet cost = (i: long, o: long) { round(i / 1000000.0 * {InputPrice} + o / 1000000.0 * {OutputPrice}, 4) };\nlet runs = AppDependencies\n| where Name == \"fleetwise.run\"\n| project OperationId, Started = TimeGenerated, Run = tostring(Properties[\"fleetwise.run_id\"]),\n          Script = tostring(Properties[\"fleetwise.script\"]), Manager = tostring(Properties[\"fleetwise.manager\"]);\ncalls\n| summarize Input = sum(Input), Output = sum(Output), Calls = count(), Agents = make_set(strcat(Agent, \":\", Version)), First = min(TimeGenerated) by OperationId\n| join kind=leftouter runs on OperationId\n| extend Started = coalesce(Started, First), Script = iif(isempty(Script), \"other (portal, eval, CI)\", Script)\n| project Started, Run, Script, Manager, Agents = strcat_array(Agents, \", \"), Calls, Input, Output, Total = Input + Output, ['Cost (USD)'] = cost(Input, Output)\n| order by Started desc",
+        "size": 0,
+        "title": "Runs: what each demo command consumed",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Total",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            },
+            {
+              "columnMatch": "Cost (USD)",
+              "formatter": 0,
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "maximumFractionDigits": 4
+                }
+              }
+            }
+          ]
+        }
+      },
+      "name": "by-run"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let calls = AppDependencies\n| where tostring(Properties[\"microsoft.foundry\"]) == \"True\" and tostring(Properties[\"gen_ai.operation.name\"]) == \"chat\"\n| extend Agent = tostring(Properties[\"gen_ai.agent.name\"]), Version = tostring(Properties[\"gen_ai.agent.version\"]),\n         Model = tostring(Properties[\"gen_ai.response.model\"]),\n         Input = tolong(Properties[\"gen_ai.usage.input_tokens\"]), Output = tolong(Properties[\"gen_ai.usage.output_tokens\"])\n| extend Agent = iif(isempty(Agent), \"(model call without agent)\", Agent);\nlet cost = (i: long, o: long) { round(i / 1000000.0 * {InputPrice} + o / 1000000.0 * {OutputPrice}, 4) };\ncalls\n| summarize Calls = count(), Input = sum(Input), Output = sum(Output) by Agent, Version, Model\n| extend ['Tokens per call'] = (Input + Output) / Calls, ['Cost (USD)'] = cost(Input, Output)\n| order by Agent asc, toint(Version) desc",
+        "size": 0,
+        "title": "By agent version: compare naive vs hardened, per call",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "name": "by-version"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Whole Foundry account\nAll model traffic on the account, from Azure Monitor platform metrics: agents, plus evaluation judges, memory extraction, and embeddings, which do not run as agent calls. Metrics arrive in about 5 minutes."
+      },
+      "name": "account-title"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "AzureMetrics\n| where ResourceProvider == \"MICROSOFT.COGNITIVESERVICES\" and MetricName in (\"InputTokens\", \"OutputTokens\")\n| summarize Tokens = sum(Total) by bin(TimeGenerated, 1h), MetricName",
+        "size": 0,
+        "title": "Account tokens per hour (all deployments)",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart",
+        "chartSettings": {
+          "xAxis": "TimeGenerated",
+          "group": "MetricName",
+          "createOtherGroup": 0
+        }
+      },
+      "name": "account"
+    }
+  ],
+  "fallbackResourceIds": [],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

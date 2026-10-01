@@ -7,3 +7,4 @@ agent-framework-foundry>=1.13.1
 agent-framework-orchestrations>=1.2.0
 certifi
 rich
+azure-monitor-opentelemetry

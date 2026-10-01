@@ -42,7 +42,10 @@ def main() -> None:
         "v2": create("v2", "hardened", store.id),
         "vector_store": store.id,
     }
-    (ROOT / ".agents.json").write_text(json.dumps(versions, indent=2))
+    # Merge, so a rerun keeps the versions deploy.py recorded (live_*, triage_hosted, workorder_hosted).
+    agents_file = ROOT / ".agents.json"
+    saved = json.loads(agents_file.read_text()) if agents_file.exists() else {}
+    agents_file.write_text(json.dumps({**saved, **versions}, indent=2))
     print("Saved .agents.json")
 
 

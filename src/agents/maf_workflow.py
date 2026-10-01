@@ -29,6 +29,7 @@ from agent_framework.foundry import FoundryAgent
 from agent_framework.orchestrations import SequentialBuilder
 from azure.identity import AzureCliCredential
 
+from . import telemetry
 from .common import PROJECT_ENDPOINT, ROOT, TRIAGE, WORKORDER
 from .workorder.tools import TOOLS
 
@@ -80,6 +81,9 @@ async def _drain(stream, auto_approve: bool, presenter) -> dict[str, Content] | 
             requests[event.request_id] = event.data
         elif event.type == "output" and not isinstance(event.data, list):
             presenter.on_update(event.data)
+            for content in getattr(event.data, "contents", None) or []:
+                if content.type == "usage":
+                    telemetry.count(event.data.author_name or "?", content.usage_details)
 
     if not requests:
         return None
@@ -96,13 +100,7 @@ async def _drain(stream, auto_approve: bool, presenter) -> dict[str, Content] | 
     return responses
 
 
-async def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("request", nargs="?", default="What are the 3 most urgent maintenance jobs? Get them booked.")
-    parser.add_argument("--auto-approve", action="store_true")
-    parser.add_argument("--manager", default="kaan", help="memory scope: one per fleet manager")
-    args = parser.parse_args()
-
+async def main(args: argparse.Namespace) -> None:
     from .showcase import Presenter
 
     versions = json.loads((ROOT / ".agents.json").read_text())
@@ -124,4 +122,10 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("request", nargs="?", default="What are the 3 most urgent maintenance jobs? Get them booked.")
+    parser.add_argument("--auto-approve", action="store_true")
+    parser.add_argument("--manager", default="kaan", help="memory scope: one per fleet manager")
+    cli = parser.parse_args()
+    with telemetry.run("maf_workflow", manager=cli.manager):
+        asyncio.run(main(cli))

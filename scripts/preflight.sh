@@ -2,6 +2,10 @@
 # Green/red check before going on stage.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ ! -f "$ROOT/.env" ]]; then
+	printf '  \033[31mFAIL\033[0m  missing .env; deploy first: SUBSCRIPTION_ID=<id> scripts/deploy.sh\n'
+	exit 1
+fi
 set -a; source "$ROOT/.env"; set +a
 ok(){ printf '  \033[32mOK\033[0m    %s\n' "$1"; }; bad(){ printf '  \033[31mFAIL\033[0m  %s\n' "$1"; }
 az account show >/dev/null 2>&1 && ok "az signed in ($(az account show --query user.name -o tsv))" || bad "az not signed in"
@@ -13,4 +17,4 @@ import json, sys
 d = json.load(open(sys.argv[1]))
 print(f"triage v{d['triage_hosted']}, workorder v{d['workorder_hosted']}")
 PY
-); [[ -n "$v" ]] && ok "Foundry agents with memory ($v)" || bad "run: python -m src.agents.setup_foundry_agents"
+); [[ -n "$v" ]] && ok "Foundry agents with memory ($v)" || bad "run: python -m src.agents.deploy triage hardened --memory"

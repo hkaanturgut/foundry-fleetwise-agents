@@ -2,8 +2,10 @@
 
 import sys
 
+from . import telemetry
 from .common import TRIAGE, ask, project, resolve_version
 
 label, question = sys.argv[1], sys.argv[2]
 version = resolve_version(label)
-print(ask(project().get_openai_client(), TRIAGE, question, version))
+with telemetry.run("ask_agent", label=label):
+    print(ask(project().get_openai_client(), TRIAGE, question, version))

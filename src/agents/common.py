@@ -62,6 +62,9 @@ def ask(openai_client, agent_name: str, question: str, version: str | None = Non
     if version:
         ref["version"] = version
     response = openai_client.responses.create(input=question, extra_body={"agent_reference": ref})
+    from .telemetry import record_usage
+
+    record_usage(agent_name, version, response.usage)
     return response.output_text
 
 
